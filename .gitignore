@@ -1,0 +1,7 @@
+# Local env (secrets — never commit)
+.env.local
+.env*.local
+
+# Dependencies & build
+node_modules/
+.next/

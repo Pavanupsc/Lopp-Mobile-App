@@ -58,8 +58,12 @@
         </div>
 
         <div style="position:relative;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#6c6c76;letter-spacing:.6px;margin-bottom:7px;">NAME</div>
+          <input value="{{ loginName }}" onInput="{{ onLoginName }}" type="text" name="name" autocomplete="name" placeholder="Your full name" style="width:100%;background:#121218;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:15px;color:#f4f4f6;font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;margin-bottom:14px;"></input>
           <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#6c6c76;letter-spacing:.6px;margin-bottom:7px;">EMAIL</div>
           <input value="{{ loginEmail }}" onInput="{{ onLoginEmail }}" type="email" name="username" autocomplete="username" placeholder="you@loop.app" style="width:100%;background:#121218;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:15px;color:#f4f4f6;font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;margin-bottom:14px;"></input>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#6c6c76;letter-spacing:.6px;margin-bottom:7px;">PHONE</div>
+          <input value="{{ loginPhone }}" onInput="{{ onLoginPhone }}" type="tel" name="phone" autocomplete="tel" placeholder="+1 555 000 0000" style="width:100%;background:#121218;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:15px;color:#f4f4f6;font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;margin-bottom:14px;"></input>
           <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#6c6c76;letter-spacing:.6px;margin-bottom:7px;">PASSWORD</div>
           <input value="{{ loginPass }}" onInput="{{ onLoginPass }}" type="password" name="password" autocomplete="current-password" placeholder="••••" style="width:100%;background:#121218;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:15px;color:#f4f4f6;font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;margin-bottom:8px;"></input>
 
@@ -592,7 +596,7 @@
 class Component extends DCLogic {
   state = {
     authed: false, currentUser: null,
-    loginEmail: '', loginPass: '', loginError: '',
+    loginName: '', loginEmail: '', loginPhone: '', loginPass: '', loginError: '',
     phase: 'mine', tab: 'today',
     sheet: null, celebrate: null, rollVal: 0,
     rejecting: null, rejectNote: '',
@@ -602,7 +606,7 @@ class Component extends DCLogic {
     // and can also be watched by one of them (both watcher AND watchee).
     users: {
       'you@loop.app': {
-        name: 'You', initial: 'Y', pass: 'loop', bg: '#46f08a',
+        name: 'You', phone: '+1 555 010 0001', initial: 'Y', pass: 'loop', bg: '#46f08a',
         verifier: 'priya@loop.app',
         lockedDays: 18, streak: 12, best: 21, tokens: 2,
         level: 5, levelName: 'Disciplined', xp: 340, xpNext: 500, levelPct: 68, consistency: 77,
@@ -618,7 +622,7 @@ class Component extends DCLogic {
         ],
       },
       'alex@loop.app': {
-        name: 'Alex', initial: 'A', pass: 'loop', bg: '#ff5ea8',
+        name: 'Alex', phone: '+1 555 010 0002', initial: 'A', pass: 'loop', bg: '#ff5ea8',
         verifier: 'you@loop.app',
         lockedDays: 14, streak: 6, best: 9, tokens: 1,
         level: 3, levelName: 'Building', xp: 180, xpNext: 300, levelPct: 60, consistency: 64,
@@ -634,7 +638,7 @@ class Component extends DCLogic {
         ],
       },
       'sam@loop.app': {
-        name: 'Sam', initial: 'S', pass: 'loop', bg: '#ffce47',
+        name: 'Sam', phone: '+1 555 010 0003', initial: 'S', pass: 'loop', bg: '#ffce47',
         verifier: 'you@loop.app',
         lockedDays: 9, streak: 4, best: 11, tokens: 2,
         level: 2, levelName: 'Starting', xp: 90, xpNext: 200, levelPct: 45, consistency: 58,
@@ -649,7 +653,7 @@ class Component extends DCLogic {
         ],
       },
       'priya@loop.app': {
-        name: 'Priya', initial: 'P', pass: 'loop', bg: '#7aa2ff',
+        name: 'Priya', phone: '+1 555 010 0004', initial: 'P', pass: 'loop', bg: '#7aa2ff',
         verifier: 'you@loop.app',
         lockedDays: 22, streak: 19, best: 19, tokens: 2,
         level: 7, levelName: 'Relentless', xp: 620, xpNext: 800, levelPct: 77, consistency: 88,
@@ -677,17 +681,34 @@ class Component extends DCLogic {
   }
 
   // ---- auth ----
+  onLoginName = (e) => { const v = e.target.value; this.setState({ loginName: v, loginError: '' }); };
   onLoginEmail = (e) => { const v = e.target.value; this.setState({ loginEmail: v, loginError: '' }); };
+  onLoginPhone = (e) => { const v = e.target.value; this.setState({ loginPhone: v, loginError: '' }); };
   onLoginPass = (e) => { const v = e.target.value; this.setState({ loginPass: v, loginError: '' }); };
-  pick = (email) => this.setState({ loginEmail: email, loginPass: 'loop', loginError: '' });
+  pick = (email) => {
+    const u = this.state.users[email];
+    this.setState({
+      loginName: u?.name || '',
+      loginEmail: email,
+      loginPhone: u?.phone || '',
+      loginPass: 'loop',
+      loginError: '',
+    });
+  };
   doLogin = () => {
+    const name = (this.state.loginName || '').trim();
     const email = (this.state.loginEmail || '').trim().toLowerCase();
+    const phone = (this.state.loginPhone || '').trim();
+    if (!name) return this.setState({ loginError: 'Name is required.' });
+    if (!email) return this.setState({ loginError: 'Email is required.' });
+    if (!phone) return this.setState({ loginError: 'Phone is required.' });
     const u = this.state.users[email];
     if (!u) return this.setState({ loginError: 'No account with that email.' });
     if (this.state.loginPass !== u.pass) return this.setState({ loginError: 'Wrong password — try "loop".' });
+    this.updateUser(email, user => ({ ...user, name, phone }));
     this.setState({ authed: true, currentUser: email, phase: 'mine', tab: 'today', loginError: '', loginPass: '' });
   };
-  logout = () => this.setState({ authed: false, currentUser: null, loginEmail: '', loginPass: '' });
+  logout = () => this.setState({ authed: false, currentUser: null, loginName: '', loginEmail: '', loginPhone: '', loginPass: '' });
   switchTo = (email) => this.setState({ currentUser: email, phase: 'mine', tab: 'today' });
 
   // ---- persistence (prototype: localStorage; prod: Supabase) ----
@@ -802,8 +823,8 @@ class Component extends DCLogic {
       const quickAccounts = Object.keys(s.users).map(email => { const u = s.users[email]; return { name: u.name, email, initial: u.initial, bg: u.bg, onPick: () => this.pick(email) }; });
       return {
         loggedOut: true, authed: false,
-        loginEmail: s.loginEmail, loginPass: s.loginPass, loginError: !!s.loginError, loginErrorText: s.loginError,
-        onLoginEmail: this.onLoginEmail, onLoginPass: this.onLoginPass, doLogin: this.doLogin, quickAccounts,
+        loginName: s.loginName, loginEmail: s.loginEmail, loginPhone: s.loginPhone, loginPass: s.loginPass, loginError: !!s.loginError, loginErrorText: s.loginError,
+        onLoginName: this.onLoginName, onLoginEmail: this.onLoginEmail, onLoginPhone: this.onLoginPhone, onLoginPass: this.onLoginPass, doLogin: this.doLogin, quickAccounts,
         phaseMonitor: false,
       };
     }

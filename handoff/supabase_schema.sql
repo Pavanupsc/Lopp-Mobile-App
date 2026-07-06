@@ -19,6 +19,8 @@ create type pair_state       as enum ('pending', 'active', 'revoked');
 create table profiles (
   id            uuid primary key references auth.users(id) on delete cascade,
   display_name  text not null default 'New user',
+  email         text,
+  phone         text,
   initial       text not null default '?',
   avatar_color  text not null default '#46f08a',
   timezone      text not null default 'UTC',

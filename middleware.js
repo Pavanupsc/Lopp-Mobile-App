@@ -50,6 +50,7 @@ export async function middleware(request) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|html)$).*)',
+    // Exclude static assets (html, js, css, fonts, images) so Loop.dc.html can load support.js without auth.
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|html|js|css|ico|woff|woff2|ttf|eot)$).*)',
   ],
 }

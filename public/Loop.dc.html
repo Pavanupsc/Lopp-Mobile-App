@@ -72,7 +72,12 @@
             <div style="font-size:13px;color:#ff7a8f;margin-bottom:10px;">{{ loginErrorText }}</div>
           </sc-if>
 
-          <div onClick="{{ doLogin }}" style="text-align:center;padding:16px;border-radius:14px;font-size:15px;font-weight:700;color:#07120b;background:#46f08a;cursor:pointer;box-shadow:0 0 24px rgba(70,240,138,.4);margin-top:10px;">Enter the loop.</div>
+          <div onClick="{{ doAuth }}" style="text-align:center;padding:16px;border-radius:14px;font-size:15px;font-weight:700;color:#07120b;background:#46f08a;cursor:pointer;box-shadow:0 0 24px rgba(70,240,138,.4);margin-top:10px;opacity:{{ authLoading ? 0.7 : 1 }};pointer-events:{{ authLoading ? 'none' : 'auto' }};">{{ authButtonLabel }}</div>
+
+          <div style="text-align:center;margin-top:16px;font-size:13px;color:#8a8a96;">
+            {{ authTogglePrompt }}
+            <span onClick="{{ toggleAuthMode }}" style="color:#46f08a;font-weight:600;cursor:pointer;margin-left:4px;">{{ authToggleAction }}</span>
+          </div>
 
           <div style="display:flex;align-items:center;gap:10px;margin:26px 0 14px;">
             <div style="flex:1;height:1px;background:rgba(255,255,255,.08);"></div>
@@ -597,6 +602,7 @@
 class Component extends DCLogic {
   state = {
     authed: false, currentUser: null,
+    authMode: 'signin', authLoading: false,
     loginName: '', loginEmail: '', loginPhone: '', loginPass: '', loginError: '',
     phase: 'mine', tab: 'today',
     sheet: null, celebrate: null, rollVal: 0,
@@ -682,6 +688,55 @@ class Component extends DCLogic {
   }
 
   // ---- auth ----
+  defaultUserData(name, email, phone, initial, bg) {
+    return {
+      name, phone, initial, bg: bg || '#46f08a', pass: '',
+      verifier: null,
+      lockedDays: 0, streak: 0, best: 0, tokens: 2,
+      level: 1, levelName: 'Starting', xp: 0, xpNext: 200, levelPct: 0, consistency: 0,
+      goals: [
+        { id: 'g1', title: 'Set your first goal', meta: '', pts: 5, status: 'todo' },
+      ],
+      micros: [
+        { id: 'm1', title: 'Add a micro-goal', pts: 2, status: 'todo' },
+      ],
+    };
+  }
+  applyAuthUser(user, profile) {
+    const email = (user.email || '').toLowerCase();
+    const name = profile?.display_name || user.user_metadata?.full_name || email.split('@')[0];
+    const phone = profile?.phone || user.user_metadata?.phone || '';
+    const initial = profile?.initial || name.charAt(0).toUpperCase() || '?';
+    const bg = profile?.avatar_color || '#46f08a';
+    const existing = this.state.users[email];
+    const userData = existing
+      ? { ...existing, name, phone, initial, bg }
+      : this.defaultUserData(name, email, phone, initial, bg);
+    this.setState({
+      authed: true,
+      currentUser: email,
+      users: { ...this.state.users, [email]: userData },
+      phase: 'mine',
+      tab: 'today',
+      loginError: '',
+      loginPass: '',
+      authLoading: false,
+    });
+  }
+  checkSession = () => {
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.user) this.applyAuthUser(data.user, data.profile);
+      })
+      .catch(() => {});
+  };
+  toggleAuthMode = () => {
+    this.setState((s) => ({
+      authMode: s.authMode === 'signin' ? 'signup' : 'signin',
+      loginError: '',
+    }));
+  };
   onLoginName = (e) => { const v = e.target.value; this.setState({ loginName: v, loginError: '' }); };
   onLoginEmail = (e) => { const v = e.target.value; this.setState({ loginEmail: v, loginError: '' }); };
   onLoginPhone = (e) => { const v = e.target.value; this.setState({ loginPhone: v, loginError: '' }); };
@@ -694,29 +749,92 @@ class Component extends DCLogic {
       loginPhone: u?.phone || '',
       loginPass: 'loop',
       loginError: '',
+      authMode: 'signin',
     });
   };
-  doLogin = () => {
+  doDemoLogin = (email) => {
+    const u = this.state.users[email];
+    if (!u || !u.pass) return;
+    this.setState({
+      loginName: u.name || '',
+      loginEmail: email,
+      loginPhone: u.phone || '',
+      loginPass: '',
+      loginError: '',
+      authMode: 'signin',
+      authed: true,
+      currentUser: email,
+      phase: 'mine',
+      tab: 'today',
+    });
+  };
+  doAuth = async () => {
+    if (this.state.authLoading) return;
     const name = (this.state.loginName || '').trim();
     const email = (this.state.loginEmail || '').trim().toLowerCase();
     const phone = (this.state.loginPhone || '').trim();
-    if (!name) return this.setState({ loginError: 'Name is required.' });
+    const password = this.state.loginPass || '';
+    const mode = this.state.authMode;
+
+    if (mode === 'signup' && !name) return this.setState({ loginError: 'Name is required.' });
     if (!email) return this.setState({ loginError: 'Email is required.' });
-    if (!phone) return this.setState({ loginError: 'Phone is required.' });
-    const u = this.state.users[email];
-    if (!u) return this.setState({ loginError: 'No account with that email.' });
-    if (this.state.loginPass !== u.pass) return this.setState({ loginError: 'Wrong password — try "loop".' });
-    this.updateUser(email, user => ({ ...user, name, phone }));
-    this.setState({ authed: true, currentUser: email, phase: 'mine', tab: 'today', loginError: '', loginPass: '' });
+    if (mode === 'signup' && !phone) return this.setState({ loginError: 'Phone is required.' });
+    if (!password) return this.setState({ loginError: 'Password is required.' });
+
+    // Demo accounts still work offline with password "loop"
+    const demo = this.state.users[email];
+    if (demo && demo.pass && password === demo.pass && mode === 'signin') {
+      this.updateUser(email, (user) => ({ ...user, name: name || user.name, phone: phone || user.phone }));
+      return this.setState({
+        authed: true,
+        currentUser: email,
+        phase: 'mine',
+        tab: 'today',
+        loginError: '',
+        loginPass: '',
+      });
+    }
+
+    this.setState({ authLoading: true, loginError: '' });
+    try {
+      const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/signin';
+      const payload = mode === 'signup'
+        ? { name, email, phone, password }
+        : { email, password };
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return this.setState({ loginError: data.error || 'Authentication failed.', authLoading: false });
+      }
+      if (data.needsConfirmation) {
+        return this.setState({
+          loginError: data.message,
+          authMode: 'signin',
+          authLoading: false,
+        });
+      }
+      this.applyAuthUser(data.user, data.profile);
+    } catch (e) {
+      this.setState({ loginError: 'Network error — try again.', authLoading: false });
+    }
   };
-  logout = () => this.setState({ authed: false, currentUser: null, loginName: '', loginEmail: '', loginPhone: '', loginPass: '' });
+  logout = async () => {
+    try { await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' }); } catch (e) {}
+    this.setState({ authed: false, currentUser: null, loginName: '', loginEmail: '', loginPhone: '', loginPass: '' });
+  };
   switchTo = (email) => this.setState({ currentUser: email, phase: 'mine', tab: 'today' });
 
   // ---- persistence (prototype: localStorage; prod: Supabase) ----
   componentDidMount() {
+    this.checkSession();
     try {
       const saved = JSON.parse(localStorage.getItem('loop_proto_v2') || 'null');
-      if (saved && saved.v === 2 && saved.users && saved.users['you@loop.app']) {
+      if (saved && saved.v === 2 && saved.users && saved.users['you@loop.app'] && !this.state.authed) {
         this.setState({ users: saved.users, currentUser: saved.currentUser || null, authed: !!saved.currentUser });
       }
     } catch (e) {}
@@ -821,11 +939,18 @@ class Component extends DCLogic {
     const slice = Math.round(stake / daysInMonth);
 
     if (!s.authed || !s.currentUser) {
-      const quickAccounts = Object.keys(s.users).map(email => { const u = s.users[email]; return { name: u.name, email, initial: u.initial, bg: u.bg, onPick: () => this.pick(email) }; });
+      const quickAccounts = Object.keys(s.users).filter(e => s.users[e].pass).map(email => { const u = s.users[email]; return { name: u.name, email, initial: u.initial, bg: u.bg, onPick: () => this.doDemoLogin(email) }; });
+      const isSignup = s.authMode === 'signup';
       return {
         loggedOut: true, authed: false,
-        loginName: s.loginName, loginEmail: s.loginEmail, loginPhone: s.loginPhone, loginPass: s.loginPass, loginError: !!s.loginError, loginErrorText: s.loginError,
-        onLoginName: this.onLoginName, onLoginEmail: this.onLoginEmail, onLoginPhone: this.onLoginPhone, onLoginPass: this.onLoginPass, doLogin: this.doLogin, quickAccounts,
+        loginName: s.loginName, loginEmail: s.loginEmail, loginPhone: s.loginPhone, loginPass: s.loginPass,
+        loginError: !!s.loginError, loginErrorText: s.loginError,
+        authMode: s.authMode, authLoading: s.authLoading,
+        authButtonLabel: s.authLoading ? 'Please wait…' : (isSignup ? 'Create account' : 'Enter the loop.'),
+        authTogglePrompt: isSignup ? 'Already have an account?' : "Don't have an account?",
+        authToggleAction: isSignup ? 'Sign in' : 'Sign up',
+        onLoginName: this.onLoginName, onLoginEmail: this.onLoginEmail, onLoginPhone: this.onLoginPhone, onLoginPass: this.onLoginPass,
+        doAuth: this.doAuth, toggleAuthMode: this.toggleAuthMode, quickAccounts,
         phaseMonitor: false,
       };
     }

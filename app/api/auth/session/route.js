@@ -1,15 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { createRouteClient } from '@/lib/supabase/route'
 
-export async function GET() {
+export async function GET(request) {
+  const client = createRouteClient(request)
+  if (client.error) {
+    return NextResponse.json({ user: null, profile: null })
+  }
+
+  const { supabase, jsonBody } = client
+
   try {
-    const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
     if (!user) {
-      return NextResponse.json({ user: null, profile: null })
+      return jsonBody({ user: null, profile: null })
     }
 
     const { data: profile } = await supabase
@@ -18,8 +24,9 @@ export async function GET() {
       .eq('id', user.id)
       .maybeSingle()
 
-    return NextResponse.json({ user, profile })
-  } catch {
-    return NextResponse.json({ user: null, profile: null })
+    return jsonBody({ user, profile })
+  } catch (err) {
+    console.error('[session]', err)
+    return jsonBody({ user: null, profile: null })
   }
 }

@@ -1,15 +1,5 @@
-import LoginForm from '@/app/components/LoginForm'
+import { redirect } from 'next/navigation'
 
-export default async function LoginPage({ searchParams }) {
-  const params = await searchParams
-  const authError =
-    params?.error === 'auth'
-      ? 'Authentication failed. Please try again.'
-      : ''
-
-  return (
-    <main className="page-shell">
-      <LoginForm authError={authError} />
-    </main>
-  )
+export default function LoginPage() {
+  redirect('/Loop.dc.html')
 }

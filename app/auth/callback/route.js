@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/application'
+  const next = searchParams.get('next') ?? '/Loop.dc.html'
 
   if (code) {
     const supabase = await createClient()
@@ -14,5 +14,5 @@ export async function GET(request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`)
+  return NextResponse.redirect(`${origin}/Loop.dc.html`)
 }
